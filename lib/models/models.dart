@@ -192,6 +192,8 @@ class Pesanan {
   final String? catatanKembali;
   final bool dibacaPegawai;
   final String? bukti;
+  final String? buktiUrl;
+  final String? catatanPembayaran;
 
   Pesanan({
     required this.idPesanan,
@@ -241,6 +243,8 @@ class Pesanan {
     this.catatanKembali,
     this.dibacaPegawai = false,
     this.bukti,
+    this.buktiUrl,
+    this.catatanPembayaran,
   });
 
   factory Pesanan.fromJson(Map<String, dynamic> j) => Pesanan(
@@ -291,6 +295,8 @@ class Pesanan {
         catatanKembali: j['catatan_kembali'] as String?,
         dibacaPegawai: _i(j['dibaca_pegawai']) == 1,
         bukti: j['bukti'] as String?,
+        buktiUrl: j['bukti_url'] as String?,
+        catatanPembayaran: j['catatan'] as String?,
       );
 }
 

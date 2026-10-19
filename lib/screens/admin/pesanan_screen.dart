@@ -25,11 +25,15 @@ class _PesananScreenState extends State<PesananScreen> {
     _load();
   }
 
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
+  Future<void> _load({bool showLoading = true}) async {
+    if (showLoading) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    } else {
       _error = null;
-    });
+    }
     try {
       final q = _filter.isEmpty ? null : {'status': _filter};
       final res = await Api().get('booking.php', query: q);
@@ -179,6 +183,204 @@ class _PesananScreenState extends State<PesananScreen> {
     }
   }
 
+  String? _buktiUrl(Pesanan p) {
+    if (p.buktiUrl != null && p.buktiUrl!.isNotEmpty) return p.buktiUrl;
+    if (p.bukti != null && p.bukti!.isNotEmpty) return Api().fotoUrl(p.bukti);
+    return null;
+  }
+
+  Future<void> _ubahStatusBayar(Pesanan p, String status, {String? catatan}) async {
+    if (p.idPembayaran == null) {
+      showSnack(context, 'Data pembayaran pesanan ini tidak ditemukan', error: true);
+      return;
+    }
+    try {
+      await Api().put('pembayaran.php', {
+        'id_pembayaran': p.idPembayaran,
+        'status_pembayaran': status,
+        if (catatan != null && catatan.isNotEmpty) 'catatan': catatan,
+      });
+      if (mounted) showSnack(context, 'Status pembayaran: $status');
+      await _load(showLoading: false);
+    } on ApiException catch (e) {
+      if (mounted) showSnack(context, e.message, error: true);
+    }
+  }
+
+  Future<void> _verifikasiPembayaran(Pesanan p) async {
+    final catatan = TextEditingController(text: p.catatanPembayaran ?? '');
+    final metode = (p.metodePembayaran ?? '').trim();
+    final bukti = _buktiUrl(p);
+    final aksi = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Verifikasi Pembayaran #${p.idPesanan}'),
+        content: SizedBox(
+          width: 420,
+          child: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              _line('Nama', p.namaPelanggan ?? '-'),
+              _line('Total tagihan', rupiah(p.totalHarga)),
+              _line('Metode bayar', metode.isEmpty ? 'Belum dipilih' : metode),
+              const SizedBox(height: 12),
+              if (bukti != null) ...[
+                const Text('Bukti pembayaran', style: TextStyle(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 6),
+                GestureDetector(
+                  onTap: () => _buktiFull(bukti),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.network(bukti, height: 200, fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => const Text('Gagal memuat bukti')),
+                  ),
+                ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: () => _buktiFull(bukti),
+                    icon: const Icon(Icons.zoom_out_map, size: 16),
+                    label: const Text('Perbesar'),
+                  ),
+                ),
+              ] else if (metode == 'QRIS' || metode == 'Transfer')
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 8),
+                  child: Text('Pelanggan belum mengunggah bukti pembayaran.', style: TextStyle(color: AppColors.muted)),
+                ),
+              TextField(controller: catatan, maxLines: 2, decoration: const InputDecoration(labelText: 'Catatan verifikasi (opsional)')),
+            ]),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, 'Gagal'), child: const Text('Tolak Pembayaran', style: TextStyle(color: AppColors.danger))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, 'Lunas'), child: const Text('Setujui Lunas')),
+        ],
+      ),
+    );
+    if (aksi == null) return;
+    await _ubahStatusBayar(p, aksi, catatan: catatan.text.trim());
+  }
+
+  void _lihatBukti(Pesanan p) {
+    final url = _buktiUrl(p);
+    if (url == null) return;
+    showDialog<void>(
+      context: context,
+      builder: (_) => Dialog(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560, maxHeight: 620),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const Text('Bukti Pembayaran', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+              const SizedBox(height: 10),
+              Flexible(
+                child: GestureDetector(
+                  onTap: () => _buktiFull(url),
+                  child: Image.network(url, fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => const Text('Gagal memuat bukti')),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                OutlinedButton.icon(
+                  onPressed: () => _buktiFull(url),
+                  icon: const Icon(Icons.zoom_out_map, size: 16),
+                  label: const Text('Perbesar'),
+                  style: OutlinedButton.styleFrom(minimumSize: const Size(0, 40)),
+                ),
+                const SizedBox(width: 8),
+                TextButton(onPressed: () => Navigator.pop(context), child: const Text('Tutup')),
+              ]),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _buktiFull(String url) {
+    Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => Scaffold(
+        backgroundColor: Colors.black,
+        appBar: AppBar(
+          backgroundColor: Colors.black,
+          foregroundColor: Colors.white,
+          title: const Text('Bukti Pembayaran', style: TextStyle(color: Colors.white)),
+        ),
+        body: InteractiveViewer(
+          maxScale: 8,
+          child: Center(
+            child: Image.network(url, fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => const Text('Gagal memuat bukti', style: TextStyle(color: Colors.white70))),
+          ),
+        ),
+      ),
+    ));
+  }
+
+  Widget _metodeBadge(String metode) {
+    final (icon, label, color) = switch (metode) {
+      'QRIS' => (Icons.qr_code_2, 'QRIS', AppColors.info),
+      'Transfer' => (Icons.account_balance_outlined, 'Transfer', AppColors.brand),
+      'Cash' => (Icons.payments_outlined, 'Cash', AppColors.success),
+      _ => (Icons.help_outline, 'Belum dipilih', AppColors.muted),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 14, color: color),
+        const SizedBox(width: 5),
+        Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 12)),
+      ]),
+    );
+  }
+
+  Widget _bayarRow(Pesanan p) {
+    final metode = (p.metodePembayaran ?? '').trim();
+    final status = (p.statusPembayaran ?? '').trim();
+    final color = statusPembayaranColor(status.isEmpty ? 'Pending' : status);
+    final pending = status.toLowerCase() == 'pending';
+    final bukti = _buktiUrl(p);
+    final perluBukti = metode == 'QRIS' || metode == 'Transfer';
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 6,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        _metodeBadge(metode),
+        if (pending)
+          InkWell(
+            borderRadius: BorderRadius.circular(999),
+            onTap: () => _verifikasiPembayaran(p),
+            child: Tooltip(
+              message: 'Klik untuk verifikasi pembayaran',
+              child: StatusChip(label: 'Pending', color: color),
+            ),
+          )
+        else
+          StatusChip(label: status.isEmpty ? 'Belum Bayar' : status, color: color),
+        if (perluBukti)
+          bukti != null
+              ? TextButton.icon(
+                  onPressed: () => _lihatBukti(p),
+                  icon: const Icon(Icons.photo_library_outlined, size: 16),
+                  label: const Text('Lihat Bukti Pembayaran'),
+                  style: TextButton.styleFrom(minimumSize: const Size(0, 36), visualDensity: VisualDensity.compact),
+                )
+              : const Text('Bukti belum diunggah', style: TextStyle(color: AppColors.muted, fontSize: 12))
+        else if (metode == 'Cash')
+          const Text('Bayar di Tempat / Cash', style: TextStyle(color: AppColors.muted, fontSize: 12, fontWeight: FontWeight.w600)),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -263,8 +465,9 @@ class _PesananScreenState extends State<PesananScreen> {
               _info('Tanggal', tanggal(p.tanggalSewa)),
               _info('Lama', '${p.lamaSewa} hari'),
               _info('Total', rupiah(p.totalHarga)),
-              _info('Bayar', p.statusPembayaran ?? 'Belum Bayar'),
             ]),
+            const SizedBox(height: 8),
+            _bayarRow(p),
             const SizedBox(height: 8),
             Align(
               alignment: Alignment.centerLeft,

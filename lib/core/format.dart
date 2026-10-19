@@ -65,11 +65,15 @@ Color statusPembayaranColor(String? s) {
   switch ((s ?? '').toLowerCase()) {
     case 'lunas':
       return AppColors.success;
+    case 'pending':
     case 'menunggu konfirmasi':
       return AppColors.info;
+    case 'gagal':
     case 'ditolak':
     case 'batal':
       return AppColors.danger;
+    case 'kadaluarsa':
+      return AppColors.muted;
     default:
       return AppColors.warning;
   }

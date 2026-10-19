@@ -10,7 +10,6 @@ import 'mobil_screen.dart';
 import 'kategori_screen.dart';
 import 'supir_screen.dart';
 import 'pesanan_screen.dart';
-import 'pembayaran_screen.dart';
 import 'pelanggan_screen.dart';
 import 'pegawai_screen.dart';
 import 'promo_screen.dart';
@@ -45,8 +44,7 @@ class _AdminShellState extends State<AdminShell> {
       const _Item('Mobil', Icons.directions_car_outlined, MobilScreen()),
       const _Item('Kategori', Icons.category_outlined, KategoriScreen(), adminOnly: true),
       const _Item('Supir', Icons.person_pin_circle_outlined, SupirScreen()),
-      const _Item('Pesanan', Icons.receipt_long_outlined, PesananScreen()),
-      const _Item('Pembayaran', Icons.payments_outlined, PembayaranScreen()),
+      const _Item('Pesanan & Pembayaran', Icons.receipt_long_outlined, PesananScreen()),
       const _Item('Promo', Icons.local_offer_outlined, PromoScreen(), adminOnly: true),
       const _Item('Pelanggan', Icons.people_outline, PelangganScreen(), adminOnly: true),
       const _Item('Pegawai', Icons.badge_outlined, PegawaiScreen(), adminOnly: true),
